@@ -2,50 +2,48 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
-	"distributed-tracing-otel/tracing"
-	"distributed-tracing-otel/weatherpb"
-
-	"go.opentelemetry.io/otel/api/global"
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
-	"go.opentelemetry.io/otel/plugin/grpctrace"
+	"github.com/lightstep/otel-launcher-go/launcher"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"distributed-tracing-otel/weatherpb"
 )
 
 func main() {
-	fn := tracing.InitTraceProvider("client")
-	defer fn()
-	tracer := global.Tracer("client")
-	cc, err := grpc.Dial("localhost:50051", grpc.WithInsecure(),
-		grpc.WithUnaryInterceptor(grpctrace.UnaryClientInterceptor(tracer)))
+	otel := launcher.ConfigureOpentelemetry(
+		launcher.WithServiceName("client"),
+		launcher.WithAccessToken("CNxTc0c2WcNnWDnTFK8LF29Yqan8hg4IcLZ0Hvjvbjf0B0SknuyGEvdyq2z0SWrOSTBTaoPOnWzLxlQTijRCc0GNTGpPEyyzeBtwGShe"),
+		launcher.WithPropagators([]string{"tracecontext"}),
+	)
+	defer otel.Shutdown()
 
+	cc, err := grpc.Dial("localhost:50051",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
 	if err != nil {
 		log.Fatalf("Error connecting: %v", err)
 	}
 	defer cc.Close()
 
 	c := weatherpb.NewWeatherServiceClient(cc)
-	getCurrentWeather(c, tracer)
+	getCurrentWeather(c)
 }
 
-func getCurrentWeather(c weatherpb.WeatherServiceClient, tracer trace.Tracer) {
+func getCurrentWeather(c weatherpb.WeatherServiceClient) {
 	req := &weatherpb.WeatherRequest{
-		Location: "dublin",
+		Location: "localhost",
 	}
 
 	ctx := context.Background()
-	ctx, span := tracer.Start(ctx, "GetCurrentWeather")
-	defer span.End()
 	res, err := c.GetCurrentWeather(ctx, req)
 	if err != nil {
-		span.RecordError(ctx, err)
-		return
+		panic(err)
 	}
-
-	span.AddEvent(ctx, "Response",
-		kv.String("condition", res.Condition),
-		kv.Float64("temperature", res.Temperature),
-	)
+	fmt.Printf("condition: %s, temperature: %v\n", res.Condition, res.Temperature)
 }
