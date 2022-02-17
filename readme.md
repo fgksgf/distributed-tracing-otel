@@ -43,3 +43,10 @@ cd client
 go build
 ./client
 ```
+
+## Screenshots
+
+<img width="1860" alt="image" src="https://user-images.githubusercontent.com/26627380/154389420-815d7bb3-1753-41ef-b46b-a0fb0a39958b.png">
+<img width="330" alt="image" src="https://user-images.githubusercontent.com/26627380/154389530-18498cb3-3281-483f-a9ad-c7a7f88a2c2c.png">
+
+
