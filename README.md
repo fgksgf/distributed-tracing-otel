@@ -54,7 +54,4 @@ go build
 
 ## Screenshots
 
-<img width="1860" alt="image" src="https://user-images.githubusercontent.com/26627380/154389420-815d7bb3-1753-41ef-b46b-a0fb0a39958b.png">
-<img width="330" alt="image" src="https://user-images.githubusercontent.com/26627380/154389530-18498cb3-3281-483f-a9ad-c7a7f88a2c2c.png">
-
-
+<img width="1851" alt="image" src="https://user-images.githubusercontent.com/26627380/154599974-31657857-c95e-416a-ae0f-9799db690ebd.png">
