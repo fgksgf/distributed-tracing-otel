@@ -8,11 +8,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/lightstep/otel-launcher-go/launcher"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
@@ -30,6 +30,7 @@ type weatherForecast struct {
 }
 
 func getTemperature(ctx context.Context) (float64, error) {
+	// The key step to instrument an HTTP client.
 	client := http.Client{
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
@@ -56,28 +57,25 @@ func getTemperature(ctx context.Context) (float64, error) {
 	return float64(wf.TemperatureC), err
 }
 
-func (s *server) GetCurrentWeather(ctx context.Context, in *weatherpb.WeatherRequest) (*weatherpb.WeatherResponse, error) {
+func (s *server) GetCurrentWeather(ctx context.Context, in *weatherpb.WeatherRequest) (_ *weatherpb.WeatherResponse, err error) {
 	span := trace.SpanFromContext(ctx)
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}()
+
 	l, ok := s.locations[in.Location]
 	if !ok {
-		err := fmt.Errorf("location not found")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("location not found")
 	}
 
+	// Send a http request to query temperature.
 	t, err := getTemperature(ctx)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-
-	span.SetAttributes(
-		attribute.String("location", in.Location),
-		attribute.String("condition", l),
-		attribute.Float64("temperature", t),
-	)
 
 	return &weatherpb.WeatherResponse{
 		Condition:   l,
@@ -88,8 +86,8 @@ func (s *server) GetCurrentWeather(ctx context.Context, in *weatherpb.WeatherReq
 func main() {
 	otel := launcher.ConfigureOpentelemetry(
 		launcher.WithServiceName("weather-service"),
-		launcher.WithAccessToken("CNxTc0c2WcNnWDnTFK8LF29Yqan8hg4IcLZ0Hvjvbjf0B0SknuyGEvdyq2z0SWrOSTBTaoPOnWzLxlQTijRCc0GNTGpPEyyzeBtwGShe"),
-		launcher.WithPropagators([]string{"tracecontext"}),
+		launcher.WithAccessToken(os.Getenv("LS_TOKEN")),
+		launcher.WithPropagators([]string{"tracecontext", "b3"}),
 	)
 	defer otel.Shutdown()
 
@@ -98,6 +96,7 @@ func main() {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
+	// The key step to instrument the gRPC server.
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
 		grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),

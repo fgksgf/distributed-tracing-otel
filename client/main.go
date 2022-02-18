@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/lightstep/otel-launcher-go/launcher"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -16,11 +17,13 @@ import (
 func main() {
 	otel := launcher.ConfigureOpentelemetry(
 		launcher.WithServiceName("client"),
-		launcher.WithAccessToken("CNxTc0c2WcNnWDnTFK8LF29Yqan8hg4IcLZ0Hvjvbjf0B0SknuyGEvdyq2z0SWrOSTBTaoPOnWzLxlQTijRCc0GNTGpPEyyzeBtwGShe"),
-		launcher.WithPropagators([]string{"tracecontext"}),
+		launcher.WithAccessToken(os.Getenv("LS_TOKEN")),
+		// For more details about propagators, see: https://lightstep.com/blog/opentelemetry-go-all-you-need-to-know/
+		launcher.WithPropagators([]string{"tracecontext", "b3"}),
 	)
 	defer otel.Shutdown()
 
+	// The key step to instrument gRPC client connection.
 	cc, err := grpc.Dial("localhost:50051",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
@@ -31,19 +34,13 @@ func main() {
 	}
 	defer cc.Close()
 
-	c := weatherpb.NewWeatherServiceClient(cc)
-	getCurrentWeather(c)
-}
-
-func getCurrentWeather(c weatherpb.WeatherServiceClient) {
-	req := &weatherpb.WeatherRequest{
+	client := weatherpb.NewWeatherServiceClient(cc)
+	res, err := client.GetCurrentWeather(context.Background(), &weatherpb.WeatherRequest{
 		Location: "localhost",
+	})
+	if err != nil {
+		log.Fatalf("Error calling GetCurrentWeather: %v", err)
 	}
 
-	ctx := context.Background()
-	res, err := c.GetCurrentWeather(ctx, req)
-	if err != nil {
-		panic(err)
-	}
 	fmt.Printf("condition: %s, temperature: %v\n", res.Condition, res.Temperature)
 }

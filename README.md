@@ -1,18 +1,26 @@
 # Distributed Tracing with OpenTelemetry-Go
 
-This sample application shows how to implement distributed trancing using OpenTelemetry-Go. All traces will be send to Lightstep.
+This sample application shows how to implement distributed tracing using OpenTelemetry-Go. All traces will be sent to Lightstep.
 
-## Architecure
+## Architecture
 
-### client
+```
++---------------+            +---------------+            +---------------+   
+|               |            |               |            |               |
+|    Client     |<-- gRPC -->|    Weather    |<-- HTTP -->|  Temperature  |
+|               |            |               |            |               |
++---------------+            +---------------+            +---------------+
+```
+
+### Client
 
 This is the entrypoint of the sample. This is a simple golang app calling the weather-service via gRPC.
 
-### weather-service
+### Weather-service
 
 Golang web server serving returning the weather description and temperature (obtained from the temperature-service) via gRPC.
 
-### temperature-service
+### Temperature-service
 
 Golang web server returning random temperatures via HTTP.
 
